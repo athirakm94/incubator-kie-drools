@@ -939,12 +939,21 @@ public class ClassGenerator {
         }
 
         public Class<?> resolveType(String className) throws ClassNotFoundException {
-            Class<?> primitiveClassName = primitiveClassMap.get(className);
-            return primitiveClassName != null ? primitiveClassName : Class.forName(className, true, classLoader);
+            return resolveType(className, ACCEPT_ALL_CLASS_FILTER);
         }
 
         public Class<?> resolveType(String className, ClassFilter classFilter) throws ClassNotFoundException {
-            throw new RuntimeException("Not Implemented");
+            Class<?> primitiveClassName = primitiveClassMap.get(className);
+            if (primitiveClassName != null) {
+                return primitiveClassName;
+            }
+            // Use loadClass instead of Class.forName(..., initialize=true, ...) to avoid running
+            // static initializers on arbitrary classes (CWE-470: Unsafe Reflection).
+            Class<?> resolved = classLoader.loadClass(className);
+            if (!classFilter.accept(resolved)) {
+                throw new ClassNotFoundException("Class '" + className + "' rejected by ClassFilter");
+            }
+            return resolved;
         }
 
         public String getFullTypeName(String shortName) throws ClassNotFoundException {

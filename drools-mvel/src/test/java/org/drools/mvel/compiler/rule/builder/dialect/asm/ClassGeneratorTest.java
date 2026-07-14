@@ -122,4 +122,34 @@ public class ClassGeneratorTest {
                 .isInstanceOf(ClassNotFoundException.class)
                 .hasMessageContaining("rejected by ClassFilter");
     }
+
+    /**
+     * Verifies CWE-470 fix: InternalTypeResolver rejects class names that do not match
+     * the safe allowlist pattern (e.g. names containing path separators, shell metacharacters,
+     * or other characters that have no place in a legal Java binary class name).
+     */
+    @Test
+    public void testInternalTypeResolverRejectsIllegalClassNames() throws Exception {
+        ClassGenerator generator = new ClassGenerator("pkg.PatternTest", getClass().getClassLoader());
+
+        java.lang.reflect.Field resolverField = ClassGenerator.class.getDeclaredField("typeResolver");
+        resolverField.setAccessible(true);
+        org.drools.util.TypeResolver internalResolver =
+                (org.drools.util.TypeResolver) resolverField.get(generator);
+
+        String[] illegalNames = {
+            "../evil/Class",          // path traversal
+            "java/lang/Runtime",      // slash separator (internal name, not binary)
+            "com.example.Foo;drop",   // semicolon injection
+            "com.example.Foo Bar",    // whitespace
+            "com.example.Foo<Bar>",   // generic brackets
+        };
+
+        for (String illegalName : illegalNames) {
+            assertThatThrownBy(() -> internalResolver.resolveType(illegalName))
+                    .as("Expected rejection of illegal class name: " + illegalName)
+                    .isInstanceOf(ClassNotFoundException.class)
+                    .hasMessageContaining("Illegal class name rejected");
+        }
+    }
 }

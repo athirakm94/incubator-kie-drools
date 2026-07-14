@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.drools.util.TypeResolver;
 import org.kie.memorycompiler.JavaCompiler;
@@ -909,6 +910,15 @@ public class ClassGenerator {
 
     private static class InternalTypeResolver implements TypeResolver {
 
+        /**
+         * Allowlist pattern for class names accepted by this resolver.
+         * Matches standard Java binary class names: identifiers separated by '.', with
+         * optional inner-class '$' segments. Rejects any name containing shell metacharacters,
+         * path separators, or other characters that have no place in a legal class name.
+         */
+        private static final Pattern SAFE_CLASS_NAME_PATTERN =
+                Pattern.compile("[\\p{L}\\p{Digit}_$][\\p{L}\\p{Digit}_$]*(\\.[\\p{L}\\p{Digit}_$][\\p{L}\\p{Digit}_$]*)*");
+
         public static final Map<String, Class<?>> primitiveClassMap = new HashMap<String, Class<?>>() {{
             put("int", int.class);
             put("boolean", boolean.class);
@@ -947,8 +957,14 @@ public class ClassGenerator {
             if (primitiveClassName != null) {
                 return primitiveClassName;
             }
-            // Use loadClass instead of Class.forName(..., initialize=true, ...) to avoid running
-            // static initializers on arbitrary classes (CWE-470: Unsafe Reflection).
+            // Validate className against a strict allowlist pattern before any loading.
+            // A legal binary class name contains only: letters, digits, '_', '$', and '.' as
+            // package separator. Reject anything else to prevent injection via the class name.
+            if (!SAFE_CLASS_NAME_PATTERN.matcher(className).matches()) {
+                throw new ClassNotFoundException("Illegal class name rejected: '" + className + "'");
+            }
+            // Use loadClass (initialize=false semantics) rather than Class.forName(name, true, loader)
+            // to avoid running static initializers on untrusted class names (CWE-470).
             Class<?> resolved = classLoader.loadClass(className);
             if (!classFilter.accept(resolved)) {
                 throw new ClassNotFoundException("Class '" + className + "' rejected by ClassFilter");

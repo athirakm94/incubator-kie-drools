@@ -113,11 +113,6 @@
         <version>${version.org.apache.sshd}</version>
       </dependency>
       <dependency>
-        <groupId>org.apache.sshd</groupId>
-        <artifactId>sshd-core</artifactId>
-        <version>${version.org.apache.sshd}</version>
-      </dependency>
-      <dependency>
         <groupId>io.quarkus</groupId>
         <artifactId>quarkus-devtools-testing</artifactId>
         <version>${version.io.quarkus.quarkus-test}</version>
